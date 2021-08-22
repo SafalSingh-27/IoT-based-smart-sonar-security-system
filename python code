@@ -1,22 +1,26 @@
 from boltiot import Bolt, Email
 import json, time, requests
-import email_conf, conf
+import conf, email_conf
 
+#setting maximum range for radar
 maximum_limit = 60
 
 mybolt = Bolt(email_conf.API_KEY, email_conf.DEVICE_ID)
 mailer = Email(email_conf.MAILGUN_API_KEY, email_conf.SANDBOX_URL,
                email_conf.SENDER_EMAIL, email_conf.RECIPIENT_EMAIL)
 
+#function to fetch the sensor value
 def get_sensor_value_from_pin(pin):
     """Returns the sensor value. Returns -999 if request fails"""
     try:
         response = mybolt.analogRead(pin)
+        #convert the sensor data into JSON format
         data = json.loads(response)
         if data["success"] != 1:
             print("Request not successfull")
             print("This is the response->", data)
             return -999
+        #storing the sensor data in sensor_value variable
         sensor_value = int(data["value"])
         return sensor_value
     except Exception as e:
@@ -24,17 +28,20 @@ def get_sensor_value_from_pin(pin):
         print(e)
         return -999
 
-
+#function to send telegram alerts when threshold reaches
 def send_telegram_message(message):
     """Sends message via Telegram"""
     url = "https://api.telegram.org/" + conf.telegram_bot_id + "/sendMessage"
+    #fecthing the required info from the conf file and storing it in the data variable
     data = {"chat_id": conf.telegram_chat_id, "text": message}
     try:
+        #requesting the POST http request
         response = requests.request("POST", url, params=data)
         print("This is the Telegram URL")
         print(url)
         print("This is the Telegram response")
         print(response.text)
+        #storing the fetched response of JSON format into telegram_data
         telegram_data = json.loads(response.text)
         return telegram_data["ok"]
     except Exception as e:
@@ -45,11 +52,13 @@ def send_telegram_message(message):
 
 while True:
     print("Reading sensor value")
+    #taking input through the A0 pin
     response = mybolt.analogRead('A0')
     data = json.loads(response)
     print("Sensor value is: " + str(data['value']))
     try:
         sensor_value = int(data['value'])
+        #requesting mailgun to send alerts 
         if sensor_value > maximum_limit:
             print("Making request to Mailgun to send an email")
             response = mailer.send_email("Alert", "Object/Enemy is closing in! " +  str(conf.threshold) + \
